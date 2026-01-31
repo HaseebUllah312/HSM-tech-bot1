@@ -1,6 +1,6 @@
 /**
- * HSM TECH BOT v3.0
- * Professional WhatsApp Bot with Enterprise Security
+ * HSM TECH BOT v1.0
+ * Professional WhatsApp Bot for Termux
  * 
  * Main Application Entry Point
  */
@@ -291,16 +291,16 @@ _We'll miss you! Take care_ 💙`;
 console.log(`
 ╔═══════════════════════════════════════════════════════════╗
 ║                                                           ║
-║         🤖  HSM TECH BOT v3.0  🤖                        ║
+║         🤖  HSM TECH BOT v1.0  🤖                        ║
 ║         Professional WhatsApp Automation                  ║
 ║                                                           ║
-║         Enterprise Security • Email Reports               ║
-║         Multi-language • Feature Toggles                  ║
+║         Google Drive • AI Powered • Termux Ready          ║
+║         File Sharing • Spam Protection                    ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
 `);
 
-logger.info('HSM TECH BOT v3.0 - Production Ready');
+logger.info('HSM TECH BOT v1.0 - Termux Edition');
 logger.info('Environment: ' + config.NODE_ENV);
 logger.info('Logging to file: ' + (config.LOG_TO_FILE ? 'enabled' : 'disabled'));
 

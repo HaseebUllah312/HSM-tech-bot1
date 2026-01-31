@@ -1,12 +1,14 @@
 /**
  * File Manager Module
  * Handle file operations for VU_Files directory with subfolder support
+ * Falls back to Google Drive search when files not found locally
  */
 
 const fs = require('fs');
 const path = require('path');
 const logger = require('./logger');
 const { isValidFilePath } = require('./security');
+const driveService = require('./driveService');
 
 const FILES_DIR = path.join(__dirname, '..', 'VU_Files');
 
@@ -245,6 +247,96 @@ function getFilesBySubjectCode(subjectCode) {
     });
 }
 
+/**
+ * Search for files by subject code - local first, then Google Drive
+ * @param {string} subjectCode - Subject code like CS101, MTH302
+ * @returns {Promise<Object>} Object with local and drive files
+ */
+async function searchWithDriveFallback(subjectCode) {
+    if (!subjectCode || typeof subjectCode !== 'string') {
+        return { local: [], drive: [], source: 'none' };
+    }
+
+    // First search locally
+    const localFiles = getFilesBySubjectCode(subjectCode);
+
+    if (localFiles.length > 0) {
+        logger.info(`Found ${localFiles.length} local files for ${subjectCode}`);
+        return {
+            local: localFiles,
+            drive: [],
+            source: 'local'
+        };
+    }
+
+    // Not found locally, search Google Drive
+    logger.info(`No local files for ${subjectCode}, searching Google Drive...`);
+
+    try {
+        const driveFiles = await driveService.searchBySubjectCode(subjectCode);
+
+        if (driveFiles.length > 0) {
+            logger.info(`Found ${driveFiles.length} Drive files for ${subjectCode}`);
+            return {
+                local: [],
+                drive: driveFiles,
+                source: 'drive'
+            };
+        }
+    } catch (err) {
+        logger.error('Failed to search Google Drive', err);
+    }
+
+    return { local: [], drive: [], source: 'none' };
+}
+
+/**
+ * Download a file from Google Drive
+ * @param {Object} file - Drive file object
+ * @returns {Promise<Object>} Downloaded file info
+ */
+async function downloadFromDrive(file) {
+    return await driveService.downloadDriveFile(file);
+}
+
+/**
+ * Search files by query - local first, then Drive fallback
+ * @param {string} query - Search query
+ * @returns {Promise<Object>} Search results with source
+ */
+async function searchFilesWithDrive(query) {
+    if (!query || typeof query !== 'string') {
+        return { local: [], drive: [], source: 'none' };
+    }
+
+    // First search locally
+    const localFiles = searchFiles(query);
+
+    if (localFiles.length > 0) {
+        return {
+            local: localFiles,
+            drive: [],
+            source: 'local'
+        };
+    }
+
+    // Not found locally, search Drive
+    try {
+        const driveFiles = await driveService.searchDriveFiles(query);
+        if (driveFiles.length > 0) {
+            return {
+                local: [],
+                drive: driveFiles,
+                source: 'drive'
+            };
+        }
+    } catch (err) {
+        logger.error('Failed to search Drive', err);
+    }
+
+    return { local: [], drive: [], source: 'none' };
+}
+
 module.exports = {
     listFiles,
     searchFiles,
@@ -253,5 +345,10 @@ module.exports = {
     getFileCount,
     getFilesBySubjectCode,
     getMimeType,
-    FILES_DIR
+    FILES_DIR,
+    // New Drive integration
+    searchWithDriveFallback,
+    searchFilesWithDrive,
+    downloadFromDrive
 };
+

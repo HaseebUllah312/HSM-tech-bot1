@@ -1,19 +1,16 @@
 {
     "name": "hsm-tech-bot",
-    "version": "3.0.0",
-    "description": "Professional WhatsApp bot with enterprise-grade security and automation",
+    "version": "1.0.0",
+    "description": "Professional WhatsApp bot for Termux",
     "main": "bot.js",
     "scripts": {
         "start": "node bot.js",
-        "dev": "nodemon bot.js",
-        "test": "node test-bot.js",
-        "logs": "tail -f logs/app.log",
         "clean": "rm -rf node_modules package-lock.json && npm install"
     },
     "keywords": [
         "whatsapp",
         "bot",
-        "automation",
+        "termux",
         "baileys",
         "whatsapp-bot"
     ],
@@ -28,9 +25,6 @@
         "nodemailer": "^6.9.9",
         "pino": "^8.19.0",
         "qrcode-terminal": "^0.12.0"
-    },
-    "devDependencies": {
-        "nodemon": "^3.0.3"
     },
     "engines": {
         "node": ">=18.0.0"

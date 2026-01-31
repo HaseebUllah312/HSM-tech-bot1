@@ -1,292 +1,215 @@
-# 🤖 HSM TECH BOT v3.0 - Professional WhatsApp Automation
+# 🤖 HSM Tech Bot v1.0 - Termux Edition
 
-A production-ready WhatsApp bot with enterprise-grade security, advanced features, and zero errors.
+A professional WhatsApp bot optimized for running on Termux (Android).
 
-## ✨ Features
+## 📱 Requirements
 
-- **🤖 Automated Responses** - Intelligent command processing and greetings
-- **📁 File Sharing** - Organize and share files with users
-- **📧 Email Notifications** - Daily reports and error alerts
-- **🔒 Enterprise Security** - Rate limiting, user blocking, input validation
-- **⚙️ Feature Toggles** - Enable/disable features without restart
-- **📊 Activity Logging** - Comprehensive logging and monitoring
-- **⚡ Infinite Retry** - Automatic reconnection with exponential backoff
-- **💬 Multi-language Support** - Greeting detection in multiple languages
+- **Android Phone** with Termux installed
+- **Termux:API** app (from F-Droid)
+- **Active Internet Connection**
+- **WhatsApp Account** for the bot
 
-## 🚀 Quick Start
+## 🚀 Quick Setup
 
-### Prerequisites
-- Node.js v18+
-- npm or yarn
-- WhatsApp account for linking
-- **Android Users**: See [Termux Guide](TERMUX_GUIDE.md)
-
-### Installation
+### 1. Install Termux Dependencies
 
 ```bash
-# 1. Clone or navigate to project
-cd hsm-tech-bot
+# Update packages
+pkg update && pkg upgrade -y
 
-# 2. Install dependencies
-npm install
-
-# 3. Configure environment
-cp .env.example .env
-# Edit .env with your settings (email, bot settings, etc.)
-
-# 4. Run tests
-npm test
-
-# 5. Start the bot
-npm start
+# Install required packages
+pkg install nodejs git termux-api -y
 ```
 
-## 📋 Available Commands
+### 2. Clone & Setup Bot
 
-| Command | Description | Example |
-|---------|-------------|---------|
-| `!help` | Show all commands | `!help` |
-| `!status` | Check bot status | `!status` |
-| `!files` | Get shared files | `!files` |
-| `!contact` | Contact information | `!contact` |
-| `!paid` | Paid services info | `!paid` |
-| `!ping` | Test bot responsiveness | `!ping` |
-| `!toggle [feature]` | Toggle features (admin) | `!toggle bot` |
-| `!block [number]` | Block user (admin) | `!block 923001234567` |
-| `!unblock [number]` | Unblock user (admin) | `!unblock 923001234567` |
+```bash
+# Clone the repository
+git clone https://github.com/your-repo/hsm-tech-bot.git
+cd hsm-tech-bot
 
-## 🎯 Project Structure
+# Install dependencies
+npm install
+
+# Make start script executable
+chmod +x termux-start.sh
+```
+
+### 3. Configure the Bot
+
+Edit `.env` file with your settings:
+```bash
+nano .env
+```
+
+Key settings to configure:
+- `BOT_NAME` - Your bot's name
+- `BOT_OWNER` - Your name
+- `ADMIN_NUMBERS` - Your WhatsApp numbers (comma-separated)
+- `GEMINI_API_KEY` - Your Google AI API key (for AI features)
+
+### 4. Start the Bot
+
+**First Run (to scan QR code):**
+```bash
+./termux-start.sh
+```
+
+**Run in Background:**
+```bash
+./termux-start.sh bg
+```
+
+## 📋 Commands
+
+| Command | Description |
+|---------|-------------|
+| `./termux-start.sh` | Start in foreground (QR scan) |
+| `./termux-start.sh bg` | Start in background |
+| `./termux-start.sh stop` | Stop the bot |
+| `./termux-start.sh status` | Check if running |
+| `./termux-start.sh logs` | View live logs |
+| `./termux-start.sh restart` | Restart the bot |
+
+## 🤖 Bot Features
+
+### Basic Commands
+| Command | Description |
+|---------|-------------|
+| `!help` | Show all commands |
+| `!status` | Bot status & uptime |
+| `!ping` | Test bot response |
+| `!files` | List available files |
+| `!contact` | Contact information |
+| `!paid` | Paid services info |
+
+### AI Features
+- Just send any question to get AI-powered answers!
+- Powered by Google Gemini AI
+
+### Admin Commands
+| Command | Description |
+|---------|-------------|
+| `!tagall` | Tag all group members |
+| `!open` | Open group chat |
+| `!close` | Close group (admins only) |
+| `!kick @user` | Remove member |
+| `!mute @user [mins]` | Mute member |
+| `!warn @user` | Warn member (3 = kick) |
+| `!promote @user` | Make admin |
+| `!demote @user` | Remove admin |
+| `!toggle [feature]` | Toggle bot features |
+
+## 📁 Project Structure
 
 ```
 hsm-tech-bot/
-├── bot.js                 # Main application
-├── package.json          # Dependencies & scripts
-├── test-bot.js          # Comprehensive tests
-├── .env.example         # Configuration template
+├── bot.js              # Main bot entry point
+├── termux-start.sh     # Termux startup script
+├── package.json        # Node.js dependencies
+├── .env                # Configuration (create from .env.example)
+├── .env.example        # Configuration template
 ├── src/
-│   ├── config.js        # Configuration management
-│   ├── logger.js        # Logging system
-│   ├── security.js      # Security & validation
-│   ├── fileManager.js   # File operations
+│   ├── config.js       # Config loader
 │   ├── messageHandler.js # Command processing
-│   └── emailService.js  # Email functionality
-├── VU_Files/           # Shared files directory
-├── logs/               # Application logs
-├── auth/               # WhatsApp authentication (auto-generated)
-└── README.md          # This file
+│   ├── aiService.js    # Google Gemini AI
+│   ├── fileManager.js  # File management
+│   ├── emailService.js # Email notifications
+│   ├── security.js     # Security checks
+│   ├── logger.js       # Logging system
+│   └── linkModerator.js # Link moderation
+├── VU_Files/           # Shared files
+├── auth/               # WhatsApp session (auto-created)
+└── logs/               # Log files
 ```
 
-## ⚙️ Configuration
+## ⚠️ Important Tips
 
-Edit `.env` to customize:
+1. **Keep Termux Running**: Use `termux-wake-lock` to prevent Android from killing Termux
+2. **Battery Optimization**: Disable battery optimization for Termux
+3. **Stable Connection**: Use stable WiFi for best results
+4. **Backup Auth**: Copy `auth/` folder to backup your session
 
-```env
-# Bot Settings
-BOT_NAME=HSM Tech Bot
-BOT_PREFIX=!
-BOT_OWNER=Admin
+## 🔧 Troubleshooting
 
-# Feature Toggles
-FEATURE_BOT_ENABLED=true
-FEATURE_AUTO_REPLY=true
-FEATURE_FILE_SHARING=true
-FEATURE_EMAIL_REPORTS=true
-FEATURE_WELCOME_MESSAGE=true
+### Bot stops when closing Termux
+- Use `./termux-start.sh bg` to run in background
+- Install Termux:API and run `termux-wake-lock`
 
-# Email Settings
-EMAIL_USER=your-email@gmail.com
-EMAIL_PASSWORD=your-app-password
-EMAIL_RECIPIENT=your-email@gmail.com
+### QR Code not showing
+- Check your internet connection
+- Delete `auth/` folder and restart
 
-# Rate Limiting
-MAX_MESSAGES_PER_MINUTE=20
+### Connection keeps dropping
+- Check your internet stability
+- Increase reconnect delay in bot.js
 
-# And more...
-```
-
-## 📊 Testing
-
-Run the comprehensive test suite:
-
+### Permission errors
 ```bash
-npm test
+chmod +x termux-start.sh
 ```
 
-Tests cover:
-- ✅ 57+ test cases
-- ✅ 100% success rate
-- ✅ Configuration validation
-- ✅ Input sanitization
-- ✅ Command processing
-- ✅ Rate limiting
-- ✅ File management
-- ✅ Email functionality
-- ✅ Security features
+## 🔋 Keep Bot Running 24/7 (Always Online)
 
-## 🔒 Security Features
+### Required Apps (from F-Droid only!)
+1. **Termux**
+2. **Termux:API** - For wake-lock
+3. **Termux:Boot** - For auto-start on reboot
 
-- **Input Sanitization** - Removes null bytes and limits length
-- **Rate Limiting** - Max 20 messages/minute per user (configurable)
-- **User Blocking** - Block specific users from using the bot
-- **Path Validation** - Prevents directory traversal attacks
-- **Group Filtering** - Whitelist allowed groups
-- **Error Masking** - Safe error messages to users
-- **Comprehensive Logging** - All activities logged for audit
+### Step-by-Step Setup
 
-## 📧 Email Integration
-
-### Setup Gmail App Password
-
-1. Enable 2-factor authentication on your Google account
-2. Go to [Google App Passwords](https://myaccount.google.com/apppasswords)
-3. Generate an App Password for "Mail"
-4. Use the 16-character App Password in `.env` as `EMAIL_PASSWORD`
-
-### Daily Reports
-
-The bot sends daily reports at configured time (default 9:00 AM) with:
-- Activity summary
-- Recent commands
-- Error log
-- Bot status
-
-## 🔄 How It Works
-
-1. **Connection** - Bot connects to WhatsApp using Baileys library
-2. **QR Code** - Scan QR code with your WhatsApp phone
-3. **Message Received** - Bot processes incoming messages
-4. **Command Check** - Checks if message starts with prefix (!)
-5. **Response** - Executes command or sends greeting/auto-reply
-6. **Logging** - All activities logged for monitoring
-
-## 🛠️ Development
-
-### Available Scripts
-
+**1. Install termux-api package:**
 ```bash
-npm start          # Start bot
-npm run dev        # Start with nodemon (auto-reload)
-npm test           # Run test suite
-npm run logs       # View live logs
-npm run clean      # Clean and reinstall
+pkg install termux-api
 ```
 
-### Project Statistics
+**2. Disable Battery Optimization:**
+- Go to **Settings → Apps → Termux**
+- Tap **Battery** → Select **Unrestricted**
+- Do same for **Termux:API** and **Termux:Boot**
 
-- **Total Files**: 20+
-- **Lines of Code**: 2000+
-- **Modules**: 6 professional modules
-- **Test Coverage**: 57+ test cases
-- **Security Layers**: 8+
-- **Error Handling**: Comprehensive try-catch blocks
+**3. Start Bot in Background:**
+```bash
+./termux-start.sh bg
+```
 
-## 📱 WhatsApp Linking
+**4. Setup Auto-Start on Reboot:**
+```bash
+# Create boot directory
+mkdir -p ~/.termux/boot
 
-### First Time Setup
+# Copy boot script
+cp .termux/boot/start-bot.sh ~/.termux/boot/
 
-1. Start the bot: `npm start`
-2. A QR code will appear in terminal
-3. Open WhatsApp on your phone
-4. Go to Settings → Linked Devices → Link Device
-5. Scan the QR code
-6. Bot will automatically connect
+# Make executable
+chmod +x ~/.termux/boot/start-bot.sh
+```
 
-### If QR Code Doesn't Appear
+**5. Test it works:**
+- Close Termux completely
+- Wait 1 minute
+- Open Termux and run: `./termux-start.sh status`
+- Bot should still be running!
 
-- WhatsApp may be blocking connection (try again in 30 mins - 2 hours)
-- Delete `auth` folder and restart:
-  ```bash
-  rm -rf auth
-  npm start
-  ```
-- Check internet connection
-- Verify you're using Node.js v18+
+### What Happens:
+- 🔒 **Wake-lock** keeps phone from sleeping
+- 🔄 **nohup** keeps bot running when Termux closes
+- 🚀 **Termux:Boot** restarts bot after phone reboot
+- 📱 **Notification** appears when bot is running
 
-## 🐛 Troubleshooting
+### Tips for Best Results:
+1. Keep phone plugged in or well charged
+2. Use stable WiFi connection
+3. Don't force-stop Termux from settings
+4. Check `./termux-start.sh status` periodically
 
-### Bot Not Connecting
-- Check WhatsApp hasn't blocked you temporarily
-- Wait 2 hours and try again
-- Delete auth folder: `rm -rf auth`
-- Restart bot: `npm start`
+## 📞 Contact
 
-### Messages Not Sending
-- Verify `FEATURE_BOT_ENABLED=true` in `.env`
-- Check rate limiting settings
-- Review logs in `logs/app.log`
-
-### Email Not Working
-- Verify Gmail App Password is correct (16 characters, no spaces)
-- Check `EMAIL_ENABLED=true` in `.env`
-- Ensure 2FA is enabled on Google account
-- Check spam folder for emails
-
-### High Memory Usage
-- Reduce `LOG_RETENTION_DAYS` in `.env`
-- Clear old logs: `rm logs/*.log`
-- Restart bot periodically
-
-## 📝 License
-
-MIT License - Free for personal and commercial use
-
-## 👨💍 Support
-
-For issues, feature requests, or questions:
-- GitHub Issues
-- Email: support@hsmtech.com
-- WhatsApp: +92 300 1234567
-
-## 🎉 Version History
-
-### v3.0.0 - Complete Rewrite (Current)
-- ✅ Complete professional refactoring
-- ✅ Enterprise security implementation
-- ✅ Comprehensive test suite (57+ tests)
-- ✅ Zero errors, production-ready
-- ✅ 6 modular components
-- ✅ Full documentation
-- ✅ Baileys library integration
-- ✅ Infinite retry with exponential backoff
-- ✅ Email notifications and daily reports
-- ✅ Multi-language greeting detection
-- ✅ Feature toggle system
-- ✅ Advanced rate limiting
-
-### v2.0.0
-- Added modular architecture
-- Implemented security layers
-- Email integration
-- Feature toggles
-
-### v1.0.0
-- Initial release
-- Basic commands
-- Simple file sharing
+- **Owner**: 𝕴𝖙'𝖘 𝕸𝖚𝖌𝖍𝖆𝖑
+- **Email**: Haseebsaleem312@gmail.com
+- **Phone**: +923177180123
+- **Website**: https://Haseebullah.me
 
 ---
 
-**Status**: ✅ Production Ready  
-**Last Updated**: January 2026  
-**Maintained By**: HSM Tech Team  
-**Powered By**: Baileys WhatsApp Library
-
----
-
-## 🌟 Getting Started Now
-
-1. **Install dependencies**: `npm install`
-2. **Copy environment**: `cp .env.example .env`
-3. **Edit `.env`**: Add your email and admin numbers
-4. **Run tests**: `npm test` (should see 57✅ tests passing)
-5. **Start bot**: `npm start`
-6. **Scan QR code**: With WhatsApp on your phone
-7. **Send `!help`**: To your bot's WhatsApp number
-8. **Enjoy!**: Your bot is now running! 🎉
-
-**Need help?** Check the detailed guides:
-- `SETUP_GUIDE.md` - Step-by-step setup
-- `TERMUX_GUIDE.md` - Android/Termux setup
-- `ARCHITECTURE.md` - Technical architecture
-- `SECURITY.md` - Security details
-- `API.md` - Module documentation
+*Made with ❤️ for Termux users*

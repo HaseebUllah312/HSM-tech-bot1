@@ -12,7 +12,7 @@ const configSchema = Joi.object({
     BOT_NAME: Joi.string().default('HSM Tech Bot'),
     BOT_PREFIX: Joi.string().default('!'),
     BOT_OWNER: Joi.string().default('Admin'),
-    BOT_VERSION: Joi.string().default('3.0.0'),
+    BOT_VERSION: Joi.string().default('1.0.0'),
 
     // Feature toggles
     FEATURE_BOT_ENABLED: Joi.boolean().default(true),

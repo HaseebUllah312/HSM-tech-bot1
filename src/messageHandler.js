@@ -1085,6 +1085,46 @@ async function handleMessage(sock, msg) {
             }
         }
 
+        // Spam detection - warn if same message sent 5 times
+        if (senderId.includes('@g.us')) {
+            const participantId = msg.key.participant;
+            if (participantId && !security.isAdmin(participantId)) {
+                const now = Date.now();
+                const spamKey = participantId;
+                const spamData = spamTracker.get(spamKey) || { lastMessage: '', count: 0, timestamp: 0 };
+
+                // Reset if different message or over 5 minutes
+                if (spamData.lastMessage !== sanitizedText || (now - spamData.timestamp) > 300000) {
+                    spamTracker.set(spamKey, { lastMessage: sanitizedText, count: 1, timestamp: now });
+                } else {
+                    spamData.count++;
+                    spamData.timestamp = now;
+                    spamTracker.set(spamKey, spamData);
+
+                    if (spamData.count >= 5) {
+                        try {
+                            // Delete the spam message
+                            await sock.sendMessage(senderId, { delete: msg.key });
+
+                            // Send warning
+                            const userNum = participantId.split('@')[0];
+                            await sock.sendMessage(senderId, {
+                                text: `⚠️ *SPAM WARNING*\n\n@${userNum} please stop sending the same message repeatedly!\n\n_This message has been deleted._`,
+                                mentions: [participantId]
+                            });
+
+                            // Reset counter
+                            spamTracker.set(spamKey, { lastMessage: '', count: 0, timestamp: 0 });
+                            logger.info('Spam message deleted', { user: participantId, count: spamData.count });
+                        } catch (delErr) {
+                            logger.error('Failed to delete spam message', delErr);
+                        }
+                        return;
+                    }
+                }
+            }
+        }
+
         // Link moderation for groups
         if (senderId.includes('@g.us') && config.FEATURE_LINK_MODERATION) {
             // Check for status mentions
@@ -1202,19 +1242,41 @@ async function handleMessage(sock, msg) {
             if (subjectCode) {
                 logger.info('Subject code request received', { subjectCode, sender: senderId });
 
-                const matchingFiles = fileManager.getFilesBySubjectCode(subjectCode);
+                // Search local files first, then Google Drive
+                const searchResult = await fileManager.searchWithDriveFallback(subjectCode);
 
-                if (matchingFiles.length === 0) {
+                if (searchResult.source === 'none') {
                     await sock.sendMessage(senderId, {
-                        text: `📁 No files found for *${subjectCode}*\n\nPlease check the subject code or contact admin to add files.`
+                        text: `📁 No files found for *${subjectCode}*\n\nFiles not found locally or on Google Drive.\nPlease check the subject code or contact admin.`
                     });
-                } else {
-                    // Send info message first
-                    await sock.sendMessage(senderId, {
-                        text: `📚 Found *${matchingFiles.length}* file(s) for *${subjectCode}*\n\n_Sending files..._`
+                } else if (searchResult.source === 'local') {
+                    // Send local files (max 20, prioritized)
+                    let matchingFiles = searchResult.local;
+                    const totalFound = matchingFiles.length;
+                    const MAX_FILES = 20;
+
+                    // Sort by priority: PDF > DOC > PPT > Others, then by size (smaller first)
+                    matchingFiles.sort((a, b) => {
+                        const priority = { '.pdf': 1, '.doc': 2, '.docx': 2, '.ppt': 3, '.pptx': 3, '.txt': 4 };
+                        const extA = (a.name.match(/\.[^.]+$/) || [''])[0].toLowerCase();
+                        const extB = (b.name.match(/\.[^.]+$/) || [''])[0].toLowerCase();
+                        const prioA = priority[extA] || 99;
+                        const prioB = priority[extB] || 99;
+                        if (prioA !== prioB) return prioA - prioB;
+                        return (a.sizeBytes || 0) - (b.sizeBytes || 0);
                     });
 
-                    // Send each file
+                    // Limit to MAX_FILES
+                    matchingFiles = matchingFiles.slice(0, MAX_FILES);
+
+                    let msg = `📚 Found *${totalFound}* file(s) for *${subjectCode}*\n📂 _Source: Local Storage_`;
+                    if (totalFound > MAX_FILES) {
+                        msg += `\n\n📋 Sending *${MAX_FILES}* best files (PDFs & docs first)`;
+                    }
+                    msg += `\n\n_Sending files..._`;
+
+                    await sock.sendMessage(senderId, { text: msg });
+
                     for (const file of matchingFiles) {
                         try {
                             const fs = require('fs');
@@ -1226,11 +1288,59 @@ async function handleMessage(sock, msg) {
                                 mimetype: file.mimeType || fileManager.getMimeType(file.name)
                             });
 
-                            logger.info('File sent', { fileName: file.name, path: file.relativePath, to: senderId });
+                            logger.info('Local file sent', { fileName: file.name, to: senderId });
                         } catch (fileErr) {
-                            logger.error('Failed to send file', fileErr, { fileName: file.name });
+                            logger.error('Failed to send local file', fileErr, { fileName: file.name });
                             await sock.sendMessage(senderId, {
                                 text: `❌ Failed to send: ${file.name}`
+                            });
+                        }
+                    }
+                } else if (searchResult.source === 'drive') {
+                    // Download and send Drive files (max 20, prioritized)
+                    let driveFiles = searchResult.drive;
+                    const totalFound = driveFiles.length;
+                    const MAX_FILES = 20;
+
+                    // Sort by priority: PDF > DOC > PPT > Others
+                    driveFiles.sort((a, b) => {
+                        const priority = { '.pdf': 1, '.doc': 2, '.docx': 2, '.ppt': 3, '.pptx': 3, '.txt': 4 };
+                        const extA = (a.name.match(/\.[^.]+$/) || [''])[0].toLowerCase();
+                        const extB = (b.name.match(/\.[^.]+$/) || [''])[0].toLowerCase();
+                        const prioA = priority[extA] || 99;
+                        const prioB = priority[extB] || 99;
+                        return prioA - prioB;
+                    });
+
+                    // Limit to MAX_FILES
+                    driveFiles = driveFiles.slice(0, MAX_FILES);
+
+                    let msg = `📚 Found *${totalFound}* file(s) for *${subjectCode}*\n☁️ _Source: Google Drive_`;
+                    if (totalFound > MAX_FILES) {
+                        msg += `\n\n📋 Sending *${MAX_FILES}* best files (PDFs & docs first)`;
+                    }
+                    msg += `\n\n_Downloading and sending files..._`;
+
+                    await sock.sendMessage(senderId, { text: msg });
+
+                    for (const file of driveFiles) {
+                        try {
+                            // Download from Drive
+                            const downloaded = await fileManager.downloadFromDrive(file);
+
+                            await sock.sendMessage(senderId, {
+                                document: downloaded.buffer,
+                                fileName: downloaded.name,
+                                mimetype: downloaded.mimeType
+                            });
+
+                            logger.info('Drive file sent', { fileName: file.name, to: senderId });
+                        } catch (fileErr) {
+                            logger.error('Failed to download/send Drive file', fileErr, { fileName: file.name });
+
+                            // Send view link as fallback
+                            await sock.sendMessage(senderId, {
+                                text: `❌ Failed to download: ${file.name}\n\n📥 Direct link: ${file.viewUrl}`
                             });
                         }
                     }

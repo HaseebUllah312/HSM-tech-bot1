@@ -1,31 +1,33 @@
-# Dependencies
+# Node modules
 node_modules/
-package-lock.json
 
-# Environment
+# Environment files (contains secrets)
 .env
 
-# WhatsApp Authentication
+# Authentication session
 auth/
-*.session.json
-baileys_store*.json
-baileys_auth_info/
 
-# Logs
-logs/*.log
+# Log files
+logs/
 *.log
+bot.log
 
-# OS Files
+# Process ID files
+bot.pid
+
+# Temp downloads from Google Drive
+temp_downloads/
+
+# OS files
 .DS_Store
 Thumbs.db
 
-# IDE
-.vscode/
+# Editor directories
 .idea/
+.vscode/
 *.swp
 *.swo
 
-# Temporary Files
-tmp/
-temp/
+# Temporary files
 *.tmp
+*.temp
