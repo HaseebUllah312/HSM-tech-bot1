@@ -1,0 +1,3 @@
+Sample CS101 Assignment file for testing.
+
+Assignment: CS101 - Introduction to Computing

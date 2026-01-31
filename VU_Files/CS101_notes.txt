@@ -1,0 +1,3 @@
+This is a sample CS101 notes file for testing the subject code file sharing feature.
+
+Course: CS101 - Introduction to Computing
