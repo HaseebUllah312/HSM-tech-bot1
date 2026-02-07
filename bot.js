@@ -22,9 +22,33 @@ const config = require('./src/config');
 const logger = require('./src/logger');
 const messageHandler = require('./src/messageHandler');
 const emailService = require('./src/emailService');
+const driveService = require('./src/driveService');
+const { settings } = require('./src/dataStore');
 
-// Create pino logger for Baileys (it requires pino's trace/child methods)
-const baileysLogger = pino({ level: 'silent' });
+// Create pino logger for Baileys with custom filtering
+const baileysLogger = pino({
+    level: 'error',
+    transport: {
+        target: 'pino/file',
+        options: {
+            destination: 1, // stdout
+        },
+        level: 'error'
+    }
+}).child({});
+
+// Wrap the logger to filter decryption errors
+const originalError = baileysLogger.error.bind(baileysLogger);
+baileysLogger.error = function (...args) {
+    const message = JSON.stringify(args);
+    // Suppress common decryption errors that are expected during reconnection
+    if (message.includes('Bad MAC') ||
+        message.includes('MessageCounterError') ||
+        message.includes('failed to decrypt')) {
+        return; // Silently ignore these
+    }
+    originalError(...args);
+};
 
 // Authentication directory
 const AUTH_DIR = path.join(__dirname, 'auth');
@@ -54,11 +78,113 @@ function resetReconnectAttempts() {
 }
 
 /**
+ * Check if a message should be processed during catch-up
+ * @param {Object} msg - Message object
+ * @returns {boolean} True if should process
+ */
+function shouldProcessCatchupMessage(msg) {
+    try {
+        // Skip if bot sent it
+        if (msg.key.fromMe) return false;
+
+        // Skip if no message content
+        if (!msg.message) return false;
+
+        // Skip broadcast/status
+        if (msg.key.remoteJid === 'status@broadcast') return false;
+
+        // Skip if too old (>24 hours)
+        const msgTime = msg.messageTimestamp * 1000;
+        const age = Date.now() - msgTime;
+        if (age > 24 * 60 * 60 * 1000) return false;
+
+        // Only process if less than 6 hours old for better relevance
+        if (age > 6 * 60 * 60 * 1000) return false;
+
+        return true;
+    } catch (err) {
+        return false;
+    }
+}
+
+/**
+ * Process missed messages from when bot was offline
+ * @param {Object} sock - WhatsApp socket
+ */
+async function processMissedMessages(sock) {
+    try {
+        logger.info('🔍 Checking for missed messages...');
+
+        // Small delay to let connection stabilize
+        await new Promise(resolve => setTimeout(resolve, 3000));
+
+        // Get all chats (both groups and personal)
+        const chats = await sock.groupFetchAllParticipating().catch(() => ({}));
+        const chatIds = Object.keys(chats);
+
+        logger.info(`Found ${chatIds.length} group chats to check`);
+
+        // Also check personal chats by loading message history
+        let processedCount = 0;
+        let skippedCount = 0;
+
+        // Process groups
+        for (const chatId of chatIds) {
+            try {
+                // Fetch recent messages (last 10)
+                const messages = await sock.fetchMessagesFromWA(chatId, 10, undefined, undefined);
+
+                if (!messages || messages.length === 0) continue;
+
+                // Filter messages that need processing
+                const toProcess = messages.reverse().filter(shouldProcessCatchupMessage);
+
+                if (toProcess.length > 0) {
+                    logger.info(`Processing ${toProcess.length} missed messages from ${chatId}`);
+
+                    // Process with delay to avoid spam
+                    for (const msg of toProcess) {
+                        try {
+                            await messageHandler.handleMessage(sock, msg);
+                            processedCount++;
+
+                            // 2 second delay between messages
+                            await new Promise(resolve => setTimeout(resolve, 2000));
+                        } catch (err) {
+                            logger.error('Error processing catch-up message', err);
+                            skippedCount++;
+                        }
+                    }
+                } else {
+                    skippedCount += messages.length;
+                }
+
+                // Delay between chats to avoid rate limiting
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
+            } catch (err) {
+                logger.error(`Error fetching messages from ${chatId}`, err);
+            }
+        }
+
+        if (processedCount > 0) {
+            logger.info(`✅ Catch-up complete: Processed ${processedCount} missed messages, skipped ${skippedCount}`);
+        } else {
+            logger.info('✅ No missed messages to process');
+        }
+
+    } catch (err) {
+        logger.error('Error in missed message processing', err);
+    }
+}
+
+
+/**
  * Start WhatsApp bot
  */
 async function startBot() {
     try {
-        logger.info('Starting HSM TECH BOT v3.0...');
+        logger.info('Starting HSM TECH BOT v1.0...');
         logger.info('Loading authentication state...');
 
         // Load auth state
@@ -119,11 +245,16 @@ async function startBot() {
                         startBot();
                     }, delay);
                 } else {
-                    logger.error('Logged out! Delete auth folder and restart to reconnect.');
-                    await emailService.sendErrorAlert(
-                        'Bot logged out - authentication required',
-                        new Error('WhatsApp session was logged out')
-                    );
+                    logger.error('Connection closed permanently. This might be due to a session conflict or seeing "Logged out".');
+                    logger.error('Reason:', DisconnectReason[errorCode] || errorCode || 'Unknown');
+
+                    if (errorCode === DisconnectReason.loggedOut || errorCode === 403) {
+                        logger.error('CRITICAL: Bot was logged out! You must delete the "auth" folder and re-scan the QR code.');
+                        await emailService.sendErrorAlert(
+                            'Bot Logged Out',
+                            new Error('WhatsApp session was logged out. Manual re-authentication required.')
+                        );
+                    }
                 }
             } else if (connection === 'open') {
                 resetReconnectAttempts();
@@ -135,10 +266,29 @@ async function startBot() {
 
                 // Send startup notification
                 await emailService.sendStartupNotification();
+
+                // Initialize Drive Cache
+                driveService.refreshCache().catch(err => logger.error('Failed to refresh Drive cache', err));
+
+                // Initialize Automation (Restore Timers)
+                try {
+                    const automation = require('./src/commands/automation');
+                    automation.initAutomation(sock);
+                    logger.info('✅ Automation schedules restored.');
+                } catch (err) {
+                    logger.error('Failed to restore automation schedules', err);
+                }
+
+                logger.info('Waiting for offline messages (auto-handled by WhatsApp)...');
             } else if (connection === 'connecting') {
                 logger.info('Connecting to WhatsApp...');
             }
         });
+
+        // Track decryption errors to avoid log spam
+        let decryptionErrorCount = 0;
+        let lastDecryptionErrorTime = 0;
+        const DECRYPTION_ERROR_RESET_MS = 60000; // Reset counter after 1 minute
 
         // Message handler
         sock.ev.on('messages.upsert', async ({ messages, type }) => {
@@ -150,19 +300,60 @@ async function startBot() {
                     if (msg.key.fromMe) continue;
 
                     // Handle message
-                    await messageHandler.handleMessage(sock, msg);
+                    try {
+                        await messageHandler.handleMessage(sock, msg);
+                    } catch (msgErr) {
+                        const errorMessage = msgErr.toString();
+
+                        // Handle decryption errors gracefully
+                        if (errorMessage.includes('Bad MAC') ||
+                            errorMessage.includes('MessageCounterError') ||
+                            errorMessage.includes('SessionError')) {
+
+                            const now = Date.now();
+
+                            // Reset counter if enough time has passed
+                            if (now - lastDecryptionErrorTime > DECRYPTION_ERROR_RESET_MS) {
+                                decryptionErrorCount = 0;
+                            }
+
+                            lastDecryptionErrorTime = now;
+                            decryptionErrorCount++;
+
+                            // Only log first occurrence or every 10th error
+                            if (decryptionErrorCount === 1) {
+                                logger.warn('⚠️ Decryption errors detected for old messages. This is normal during reconnection.');
+                                logger.warn('   These messages were encrypted with a previous session and will be skipped.');
+                            } else if (decryptionErrorCount % 10 === 0) {
+                                logger.warn(`⚠️ ${decryptionErrorCount} decryption errors (old messages being skipped)`);
+                            }
+
+                            // If too many errors, suggest re-authentication
+                            if (decryptionErrorCount === 50) {
+                                logger.error('NOTICE: Many decryption errors detected.');
+                                logger.error('If this persists with NEW messages, delete the "auth" folder and re-scan QR code.');
+                            }
+                        } else {
+                            // Log other errors normally
+                            logger.error('Error processing message', msgErr);
+                        }
+                    }
                 }
             } catch (err) {
-                logger.error('Error in message handler', err);
+                logger.error('Error in messages.upsert handler', err);
             }
         });
 
         // Group participant updates
         sock.ev.on('group-participants.update', async (update) => {
             try {
-                if (!config.FEATURE_WELCOME_MESSAGE) return;
-
                 const { id, participants, action } = update;
+
+                // Check dynamic setting (default to config if not set)
+                // Note: 'welcome' is the key used in moderation.js for this feature
+                const isWelcomeEnabled = settings.get(`${id}.welcome`, config.FEATURE_WELCOME_MESSAGE);
+
+                if (!isWelcomeEnabled) return;
 
                 if (action === 'add') {
                     for (const participant of participants) {
@@ -212,7 +403,13 @@ _We'll miss you! Take care_ 💙`;
                             });
                             logger.info('Goodbye message sent', { member: memberNumber, group: id });
                         } catch (err) {
-                            logger.error('Failed to send goodbye message', err);
+                            // Ignore forbidden errors (bot might have been removed)
+                            const errorMessage = err.toString().toLowerCase();
+                            if (errorMessage.includes('forbidden') || errorMessage.includes('403')) {
+                                logger.warn('Cannot send goodbye message: Bot removed or forbidden', { group: id });
+                            } else {
+                                logger.error('Failed to send goodbye message', err);
+                            }
                         }
                     }
                 }
@@ -303,6 +500,39 @@ console.log(`
 logger.info('HSM TECH BOT v1.0 - Termux Edition');
 logger.info('Environment: ' + config.NODE_ENV);
 logger.info('Logging to file: ' + (config.LOG_TO_FILE ? 'enabled' : 'disabled'));
+
+// KEEP-ALIVE SERVER (Native Node.js - No Dependencies)
+const http = require('http');
+const PORT = process.env.PORT || 3000;
+
+const appUrl = process.env.APP_URL || `http://localhost:${PORT}`;
+
+http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('HSM Tech Bot is Active! 🤖');
+}).listen(PORT, () => {
+    logger.info(`Keep-Alive Server running on port ${PORT}`);
+
+    // Self-ping mechanism to prevent sleeping
+    setInterval(() => {
+        http.get(appUrl, (res) => {
+            // logger.info(`Self-ping status: ${res.statusCode}`); // Optional log
+        }).on('error', (err) => {
+            logger.error('Self-ping failed', err.message);
+        });
+    }, 5 * 60 * 1000); // Ping every 5 minutes
+});
+
+// GLOBAL ERROR HANDLERS (Prevent silent crashes)
+process.on('uncaughtException', (err) => {
+    logger.error('CRITICAL: Uncaught Exception:', err);
+    // Keep process alive if possible, or exit cleanly. 
+    // For a bot, usually better to catch and log than crash 24/7.
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    logger.error('CRITICAL: Unhandled Rejection:', reason);
+});
 
 // Start the bot
 startBot();

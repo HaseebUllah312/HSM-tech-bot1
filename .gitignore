@@ -1,33 +1,8 @@
-# Node modules
-node_modules/
-
-# Environment files (contains secrets)
-.env
-
-# Authentication session
+﻿node_modules/
 auth/
-
-# Log files
+.env
 logs/
-*.log
-bot.log
-
-# Process ID files
-bot.pid
-
-# Temp downloads from Google Drive
 temp_downloads/
-
-# OS files
+*.log
 .DS_Store
-Thumbs.db
-
-# Editor directories
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# Temporary files
-*.tmp
-*.temp
+hsm-bot-key.pem

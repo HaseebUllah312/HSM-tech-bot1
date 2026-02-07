@@ -23,12 +23,23 @@ const configSchema = Joi.object({
     FEATURE_GROUP_ONLY: Joi.boolean().default(false),
     FEATURE_AI_ENABLED: Joi.boolean().default(true),
     FEATURE_LINK_MODERATION: Joi.boolean().default(true),
+    // Enable Anti-Sticker by default as requested ("all setting on")
+    FEATURE_ANTISTICKER: Joi.boolean().default(true),
 
     // AI Configuration
     GEMINI_API_KEY: Joi.string().allow('').default(''),
+    GROQ_API_KEY: Joi.string().allow('').default(''),  // FREE! Get at https://console.groq.com/keys
+    FEATURE_AI_INBOX: Joi.boolean().default(true),
+    FEATURE_AI_GROUP: Joi.boolean().default(true),
+    AUTO_REPLY_EXCLUDE: Joi.string().allow('').default(''),
+
+    // Auto File Sending
+    FEATURE_AUTO_FILES: Joi.boolean().default(true),
+    GDRIVE_FOLDER_LINKS: Joi.string().allow('').default(''),
+    OWNER_HELP_NUMBER: Joi.string().default('923177180123'),
 
     // Email configuration
-    EMAIL_ENABLED: Joi.boolean().default(false),
+    EMAIL_ENABLED: Joi.boolean().default(true), // Enabled by default
     EMAIL_USER: Joi.string().email().allow('').default(''),
     EMAIL_PASSWORD: Joi.string().allow('').default(''),
     EMAIL_RECIPIENT: Joi.string().email().allow('').default(''),
@@ -40,12 +51,16 @@ const configSchema = Joi.object({
     BLOCKED_USERS: Joi.string().allow('').default(''),
 
     // Admin settings
-    ADMIN_NUMBERS: Joi.string().allow('').default(''),
+    // Add known owner numbers to default to prevent lockout
+    ADMIN_NUMBERS: Joi.string().allow('').default('923177180123,219086348923028'),
     GROUP_WHITELIST: Joi.string().allow('').default(''),
 
     // Logging
     LOG_LEVEL: Joi.string().valid('debug', 'info', 'warn', 'error').default('info'),
     LOG_TO_FILE: Joi.boolean().default(true),
+
+    // Timezone for scheduled tasks
+    TIMEZONE: Joi.string().default('Asia/Karachi'),
     LOG_RETENTION_DAYS: Joi.number().integer().min(1).max(30).default(7),
 
     // Contact info
@@ -57,7 +72,10 @@ const configSchema = Joi.object({
     PAID_SERVICES_INFO: Joi.string().allow('').default(''),
 
     // Environment
-    NODE_ENV: Joi.string().valid('development', 'production').default('production')
+    NODE_ENV: Joi.string().valid('development', 'production').default('production'),
+
+    // Moderation
+    DEFAULT_WARNING_LIMIT: Joi.number().integer().min(1).max(10).default(3)
 }).unknown(true);
 
 /**
@@ -88,9 +106,16 @@ function loadConfig() {
         FEATURE_WELCOME_MESSAGE: parseBoolean(process.env.FEATURE_WELCOME_MESSAGE),
         FEATURE_GROUP_ONLY: parseBoolean(process.env.FEATURE_GROUP_ONLY),
         FEATURE_AI_ENABLED: parseBoolean(process.env.FEATURE_AI_ENABLED ?? 'true'),
+        FEATURE_AI_INBOX: parseBoolean(process.env.FEATURE_AI_INBOX ?? 'true'),
+        FEATURE_AI_GROUP: parseBoolean(process.env.FEATURE_AI_GROUP ?? 'true'),
         FEATURE_LINK_MODERATION: parseBoolean(process.env.FEATURE_LINK_MODERATION ?? 'true'),
+        FEATURE_AUTO_FILES: parseBoolean(process.env.FEATURE_AUTO_FILES ?? 'true'),
 
         GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+        GROQ_API_KEY: process.env.GROQ_API_KEY,  // FREE! https://console.groq.com/keys
+        AUTO_REPLY_EXCLUDE: process.env.AUTO_REPLY_EXCLUDE,
+        GDRIVE_FOLDER_LINKS: process.env.GDRIVE_FOLDER_LINKS,
+        OWNER_HELP_NUMBER: process.env.OWNER_HELP_NUMBER || '923177180123',
 
         EMAIL_ENABLED: parseBoolean(process.env.EMAIL_ENABLED),
         EMAIL_USER: process.env.EMAIL_USER,
@@ -107,6 +132,7 @@ function loadConfig() {
 
         LOG_LEVEL: process.env.LOG_LEVEL,
         LOG_TO_FILE: parseBoolean(process.env.LOG_TO_FILE),
+        TIMEZONE: process.env.TIMEZONE || 'Asia/Karachi',
         LOG_RETENTION_DAYS: parseInt(process.env.LOG_RETENTION_DAYS) || 7,
 
         CONTACT_EMAIL: process.env.CONTACT_EMAIL,
@@ -115,7 +141,8 @@ function loadConfig() {
 
         PAID_SERVICES_INFO: process.env.PAID_SERVICES_INFO,
 
-        NODE_ENV: process.env.NODE_ENV
+        NODE_ENV: process.env.NODE_ENV,
+        DEFAULT_WARNING_LIMIT: parseInt(process.env.DEFAULT_WARNING_LIMIT) || 3
     };
 
     // Validate configuration
@@ -140,6 +167,14 @@ function loadConfig() {
 
     value.groupWhitelist = value.GROUP_WHITELIST
         ? value.GROUP_WHITELIST.split(',').map(n => n.trim()).filter(Boolean)
+        : [];
+
+    value.autoReplyExclude = value.AUTO_REPLY_EXCLUDE
+        ? value.AUTO_REPLY_EXCLUDE.split(',').map(n => n.trim()).filter(Boolean)
+        : [];
+
+    value.gdriveFolderLinks = value.GDRIVE_FOLDER_LINKS
+        ? value.GDRIVE_FOLDER_LINKS.split(',').map(n => n.trim()).filter(Boolean)
         : [];
 
     return value;

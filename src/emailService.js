@@ -13,26 +13,26 @@ let transporter = null;
  * Initialize email transporter
  */
 function initializeTransporter() {
-    if (!config.EMAIL_ENABLED || !config.EMAIL_USER || !config.EMAIL_PASSWORD) {
-        logger.warn('Email service disabled or not configured');
-        return false;
-    }
+  if (!config.EMAIL_ENABLED || !config.EMAIL_USER || !config.EMAIL_PASSWORD) {
+    logger.warn('Email service disabled or not configured');
+    return false;
+  }
 
-    try {
-        transporter = nodemailer.createTransport({
-            service: 'gmail',
-            auth: {
-                user: config.EMAIL_USER,
-                pass: config.EMAIL_PASSWORD
-            }
-        });
+  try {
+    transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: config.EMAIL_USER,
+        pass: config.EMAIL_PASSWORD
+      }
+    });
 
-        logger.info('Email service initialized successfully');
-        return true;
-    } catch (err) {
-        logger.error('Failed to initialize email service', err);
-        return false;
-    }
+    logger.info('Email service initialized successfully');
+    return true;
+  } catch (err) {
+    logger.error('Failed to initialize email service', err);
+    return false;
+  }
 }
 
 /**
@@ -42,27 +42,27 @@ function initializeTransporter() {
  * @returns {Promise<boolean>} Success status
  */
 async function sendEmail(subject, html) {
-    if (!transporter) {
-        if (!initializeTransporter()) {
-            return false;
-        }
+  if (!transporter) {
+    if (!initializeTransporter()) {
+      return false;
     }
+  }
 
-    const mailOptions = {
-        from: `${config.BOT_NAME} <${config.EMAIL_USER}>`,
-        to: config.EMAIL_RECIPIENT,
-        subject: subject,
-        html: html
-    };
+  const mailOptions = {
+    from: `${config.BOT_NAME} <${config.EMAIL_USER}>`,
+    to: config.EMAIL_RECIPIENT,
+    subject: subject,
+    html: html
+  };
 
-    try {
-        await transporter.sendMail(mailOptions);
-        logger.info('Email sent successfully', { subject });
-        return true;
-    } catch (err) {
-        logger.error('Failed to send email', err, { subject });
-        return false;
-    }
+  try {
+    await transporter.sendMail(mailOptions);
+    logger.info('Email sent successfully', { subject });
+    return true;
+  } catch (err) {
+    logger.error('Failed to send email', err, { subject });
+    return false;
+  }
 }
 
 /**
@@ -70,11 +70,11 @@ async function sendEmail(subject, html) {
  * @param {Object} stats - Bot statistics
  */
 async function sendDailyReport(stats) {
-    if (!config.FEATURE_EMAIL_REPORTS) {
-        return;
-    }
+  if (!config.FEATURE_EMAIL_REPORTS) {
+    return;
+  }
 
-    const html = `
+  const html = `
     <!DOCTYPE html>
     <html>
     <head>
@@ -137,20 +137,55 @@ async function sendDailyReport(stats) {
             <p><span class="label">Welcome Messages:</span> ${config.FEATURE_WELCOME_MESSAGE ? '✅' : '❌'}</p>
           </div>
           
+          ${stats.recentFileShares && stats.recentFileShares.length > 0 ? `
+          <h2>📂 Recent File Shares</h2>
+          <div class="stat-box" style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+              <tr style="background: #eee; text-align: left;">
+                <th style="padding: 8px;">Time</th>
+                <th style="padding: 8px;">File</th>
+                <th style="padding: 8px;">Group</th>
+                <th style="padding: 8px;">User</th>
+              </tr>
+              ${stats.recentFileShares.slice(0, 15).map(share => `
+              <tr style="border-bottom: 1px solid #ddd;">
+                <td style="padding: 8px;">${new Date(share.time).toLocaleTimeString()}</td>
+                <td style="padding: 8px;">${share.fileName}</td>
+                <td style="padding: 8px;">${share.group.includes('@g.us') ? 'Group' : 'DM'}</td>
+                <td style="padding: 8px;">${share.user}</td>
+              </tr>
+              `).join('')}
+            </table>
+          </div>
+          ` : '<p>No files shared yet.</p>'}
+
           ${stats.recentCommands && stats.recentCommands.length > 0 ? `
-          <h2>📋 Recent Commands</h2>
-          <div class="stat-box">
-            <ul>
-              ${stats.recentCommands.map(cmd => `<li>${cmd}</li>`).join('')}
-            </ul>
+          <h2>💻 Command Log</h2>
+          <div class="stat-box" style="overflow-x: auto;">
+             <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+              <tr style="background: #eee; text-align: left;">
+                <th style="padding: 8px;">Time</th>
+                <th style="padding: 8px;">Command</th>
+                <th style="padding: 8px;">User</th>
+                <th style="padding: 8px;">Args</th>
+              </tr>
+              ${stats.recentCommands.slice(0, 15).map(cmd => `
+              <tr style="border-bottom: 1px solid #ddd;">
+                <td style="padding: 8px;">${new Date(cmd.time).toLocaleTimeString()}</td>
+                <td style="padding: 8px;"><b>${cmd.command}</b></td>
+                <td style="padding: 8px;">${cmd.user}</td>
+                <td style="padding: 8px;">${cmd.args}</td>
+              </tr>
+              `).join('')}
+            </table>
           </div>
           ` : ''}
           
           ${stats.recentErrors && stats.recentErrors.length > 0 ? `
           <h2>⚠️ Recent Errors</h2>
           <div class="stat-box">
-            <ul>
-              ${stats.recentErrors.map(err => `<li>${err}</li>`).join('')}
+            <ul style="color: red;">
+              ${stats.recentErrors.map(err => `<li>${err.error}</li>`).join('')}
             </ul>
           </div>
           ` : ''}
@@ -165,7 +200,7 @@ async function sendDailyReport(stats) {
     </html>
   `;
 
-    await sendEmail(`${config.BOT_NAME} - Daily Report`, html);
+  await sendEmail(`${config.BOT_NAME} - Daily Report`, html);
 }
 
 /**
@@ -174,9 +209,9 @@ async function sendDailyReport(stats) {
  * @param {Error} error - Error object
  */
 async function sendErrorAlert(errorMessage, error) {
-    if (!config.EMAIL_ENABLED) return;
+  if (!config.EMAIL_ENABLED) return;
 
-    const html = `
+  const html = `
     <!DOCTYPE html>
     <html>
     <head>
@@ -214,16 +249,16 @@ async function sendErrorAlert(errorMessage, error) {
     </html>
   `;
 
-    await sendEmail(`${config.BOT_NAME} - Error Alert`, html);
+  await sendEmail(`${config.BOT_NAME} - Error Alert`, html);
 }
 
 /**
  * Send startup notification
  */
 async function sendStartupNotification() {
-    if (!config.EMAIL_ENABLED) return;
+  if (!config.EMAIL_ENABLED) return;
 
-    const html = `
+  const html = `
     <!DOCTYPE html>
     <html>
     <head>
@@ -250,13 +285,13 @@ async function sendStartupNotification() {
     </html>
   `;
 
-    await sendEmail(`${config.BOT_NAME} - Started`, html);
+  await sendEmail(`${config.BOT_NAME} - Started`, html);
 }
 
 module.exports = {
-    initializeTransporter,
-    sendEmail,
-    sendDailyReport,
-    sendErrorAlert,
-    sendStartupNotification
+  initializeTransporter,
+  sendEmail,
+  sendDailyReport,
+  sendErrorAlert,
+  sendStartupNotification
 };

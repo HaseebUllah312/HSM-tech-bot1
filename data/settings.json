@@ -1,0 +1,26 @@
+{
+  "154675177353458@lid.ai_enabled": true,
+  "120363292245733528@g.us.ai_enabled": false,
+  "123@g.us.antilink": true,
+  "123@g.us.auto_handle_group": false,
+  "120363292245733528@g.us.auto_handle_group": false,
+  "123@g.us.ai_enabled": true,
+  "120363292245733528@g.us.media": true,
+  "120363276913891659@g.us.antilink": true,
+  "120363276913891659@g.us.antisticker": true,
+  "120363292245733528@g.us.antisticker": true,
+  "120363292245733528@g.us.antilink": true,
+  "123@g.us.autoreply_enabled": true,
+  "120363276913891659@g.us.whitelist": [
+    "120363400163501891@newsletter",
+    "0029Vb5PcRb11ulIA5AYpj2K"
+  ],
+  "120363292245733528@g.us.whitelist": [
+    "120363400163501891@newsletter",
+    "0029Vb5PcRb11ulIA5AYpj2K"
+  ],
+  "120363292245733528@g.us.whitelist_names": {
+    "120363400163501891@newsletter": "Unknown Channel",
+    "0029Vb5PcRb11ulIA5AYpj2K": "Unknown Channel"
+  }
+}
