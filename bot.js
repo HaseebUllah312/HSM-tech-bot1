@@ -55,8 +55,12 @@ const AUTH_DIR = path.join(__dirname, 'auth');
 
 // Connection retry configuration
 let reconnectAttempts = 0;
-const MAX_RECONNECT_DELAY = 60000; // 60 seconds max
+const MAX_RECONNECT_DELAY = 30000; // 30 seconds max (reduced for faster recovery)
 const BASE_RECONNECT_DELAY = 2000; // Start with 2 seconds
+
+// Connection state tracking (prevent multiple simultaneous reconnection attempts)
+let isConnecting = false;
+let isConnected = false;
 
 /**
  * Calculate exponential backoff delay
@@ -109,73 +113,17 @@ function shouldProcessCatchupMessage(msg) {
 
 /**
  * Process missed messages from when bot was offline
+ * DISABLED: This function slows down startup significantly.
+ * WhatsApp will automatically sync messages, and the bot will respond to new ones.
  * @param {Object} sock - WhatsApp socket
  */
 async function processMissedMessages(sock) {
-    try {
-        logger.info('🔍 Checking for missed messages...');
-
-        // Small delay to let connection stabilize
-        await new Promise(resolve => setTimeout(resolve, 3000));
-
-        // Get all chats (both groups and personal)
-        const chats = await sock.groupFetchAllParticipating().catch(() => ({}));
-        const chatIds = Object.keys(chats);
-
-        logger.info(`Found ${chatIds.length} group chats to check`);
-
-        // Also check personal chats by loading message history
-        let processedCount = 0;
-        let skippedCount = 0;
-
-        // Process groups
-        for (const chatId of chatIds) {
-            try {
-                // Fetch recent messages (last 10)
-                const messages = await sock.fetchMessagesFromWA(chatId, 10, undefined, undefined);
-
-                if (!messages || messages.length === 0) continue;
-
-                // Filter messages that need processing
-                const toProcess = messages.reverse().filter(shouldProcessCatchupMessage);
-
-                if (toProcess.length > 0) {
-                    logger.info(`Processing ${toProcess.length} missed messages from ${chatId}`);
-
-                    // Process with delay to avoid spam
-                    for (const msg of toProcess) {
-                        try {
-                            await messageHandler.handleMessage(sock, msg);
-                            processedCount++;
-
-                            // 2 second delay between messages
-                            await new Promise(resolve => setTimeout(resolve, 2000));
-                        } catch (err) {
-                            logger.error('Error processing catch-up message', err);
-                            skippedCount++;
-                        }
-                    }
-                } else {
-                    skippedCount += messages.length;
-                }
-
-                // Delay between chats to avoid rate limiting
-                await new Promise(resolve => setTimeout(resolve, 1000));
-
-            } catch (err) {
-                logger.error(`Error fetching messages from ${chatId}`, err);
-            }
-        }
-
-        if (processedCount > 0) {
-            logger.info(`✅ Catch-up complete: Processed ${processedCount} missed messages, skipped ${skippedCount}`);
-        } else {
-            logger.info('✅ No missed messages to process');
-        }
-
-    } catch (err) {
-        logger.error('Error in missed message processing', err);
-    }
+    // DISABLED FOR FASTER STARTUP
+    // The bot will respond to new messages automatically.
+    // Old messages will be ignored to prevent slow startup and restart loops.
+    logger.info('✅ Missed message processing disabled for faster startup');
+    logger.info('   Bot will respond to new messages only');
+    return;
 }
 
 
@@ -183,6 +131,14 @@ async function processMissedMessages(sock) {
  * Start WhatsApp bot
  */
 async function startBot() {
+    // Prevent multiple simultaneous connection attempts
+    if (isConnecting) {
+        logger.warn('Connection already in progress, skipping duplicate attempt');
+        return;
+    }
+
+    isConnecting = true;
+
     try {
         logger.info('Starting HSM TECH BOT v1.0...');
         logger.info('Loading authentication state...');
@@ -228,6 +184,9 @@ async function startBot() {
 
             // Handle connection state
             if (connection === 'close') {
+                isConnected = false;
+                isConnecting = false;
+
                 const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
                 const errorCode = lastDisconnect?.error?.output?.statusCode;
 
@@ -257,7 +216,10 @@ async function startBot() {
                     }
                 }
             } else if (connection === 'open') {
+                isConnected = true;
+                isConnecting = false;
                 resetReconnectAttempts();
+
                 logger.info('✅ WhatsApp connection established successfully!');
                 logger.info(`Bot Name: ${config.BOT_NAME}`);
                 logger.info(`Command Prefix: ${config.BOT_PREFIX}`);
@@ -267,7 +229,7 @@ async function startBot() {
                 // Send startup notification
                 await emailService.sendStartupNotification();
 
-                // Initialize Drive Cache
+                // Initialize Drive Cache in background (don't block ready signal)
                 driveService.refreshCache().catch(err => logger.error('Failed to refresh Drive cache', err));
 
                 // Initialize Automation (Restore Timers)
@@ -279,8 +241,15 @@ async function startBot() {
                     logger.error('Failed to restore automation schedules', err);
                 }
 
-                logger.info('Waiting for offline messages (auto-handled by WhatsApp)...');
+                // Signal PM2 that bot is ready (important for stability)
+                if (process.send) {
+                    process.send('ready');
+                    logger.info('✅ PM2 ready signal sent');
+                }
+
+                logger.info('Waiting for new messages...');
             } else if (connection === 'connecting') {
+                isConnecting = true;
                 logger.info('Connecting to WhatsApp...');
             }
         });
@@ -469,6 +438,7 @@ _We'll miss you! Take care_ 💙`;
         process.on('SIGTERM', shutdown);
 
     } catch (err) {
+        isConnecting = false;
         logger.error('Fatal error starting bot', err);
 
         // Send error alert
@@ -513,14 +483,14 @@ http.createServer((req, res) => {
 }).listen(PORT, () => {
     logger.info(`Keep-Alive Server running on port ${PORT}`);
 
-    // Self-ping mechanism to prevent sleeping
+    // Self-ping mechanism to prevent sleeping (reduced to 3 minutes for better health monitoring)
     setInterval(() => {
         http.get(appUrl, (res) => {
-            // logger.info(`Self-ping status: ${res.statusCode}`); // Optional log
+            // Connection is healthy
         }).on('error', (err) => {
             logger.error('Self-ping failed', err.message);
         });
-    }, 5 * 60 * 1000); // Ping every 5 minutes
+    }, 3 * 60 * 1000); // Ping every 3 minutes
 });
 
 // GLOBAL ERROR HANDLERS (Prevent silent crashes)

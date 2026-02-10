@@ -85,7 +85,7 @@ If you prefer manual setup or the automated script doesn't work:
 ### Step 1: Create AWS Lightsail Instance
 
 1. **Login to AWS Console**
-   - Visit: https://lightsail.aws.amazon.com/
+   - Visit:yyyyy
 
 2. **Create Instance**
    - Click **"Create instance"**

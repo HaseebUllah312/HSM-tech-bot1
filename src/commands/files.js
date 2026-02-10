@@ -89,11 +89,40 @@ async function continueFileSending(sock, senderId) {
 const FILE_CATEGORIES = {
     handout: /\bhandout\b(?!.*highlight)/i,
     highlightHandout: /(highlight.*handout|handout.*highlight)/i,
+    final: /\b(final|finals)\b/i,
+    midterm: /\b(mid|midterm|mid-term|mids)\b/i,
     grandQuiz: /grand.*quiz/i,
     quiz: /\b(quiz|test)\b/i,
     practice: /practice/i,
     solution: /solution|solve/i
 };
+
+/**
+ * Detect user intent from query
+ * @param {string} keywords - User's search keywords
+ * @returns {Object} Intent with type and filtered keywords
+ */
+function detectSearchIntent(keywords) {
+    if (!keywords) return { type: 'general', keywords: '' };
+
+    const lower = keywords.toLowerCase();
+
+    // Check for specific intents (order matters - more specific first)
+    if (/(highlight.*handout|handout.*highlight)/i.test(lower)) {
+        return { type: 'highlightHandout', keywords: keywords.replace(/(highlight|handout)/gi, '').trim() };
+    }
+    if (/\bhandout\b/i.test(lower)) {
+        return { type: 'handout', keywords: keywords.replace(/\bhandout\b/gi, '').trim() };
+    }
+    if (/\b(final|finals)\b/.test(lower)) {
+        return { type: 'final', keywords: keywords.replace(/\b(final|finals?)\b/gi, '').trim() };
+    }
+    if (/\b(mid|midterm|mid-term|mids)\b/.test(lower)) {
+        return { type: 'midterm', keywords: keywords.replace(/\b(mid|midterm|mid-term|mids)\b/gi, '').trim() };
+    }
+
+    return { type: 'general', keywords };
+}
 
 /**
  * Filter files by keywords
@@ -114,6 +143,8 @@ function categorizeFiles(files) {
     const categorized = {
         handout: [],
         highlightHandout: [],
+        final: [],
+        midterm: [],
         grandQuiz: [],
         quiz: [],
         practice: [],
@@ -125,6 +156,8 @@ function categorizeFiles(files) {
         const fileName = file.name;
         if (FILE_CATEGORIES.highlightHandout.test(fileName)) categorized.highlightHandout.push(file);
         else if (FILE_CATEGORIES.handout.test(fileName)) categorized.handout.push(file);
+        else if (FILE_CATEGORIES.final.test(fileName)) categorized.final.push(file);
+        else if (FILE_CATEGORIES.midterm.test(fileName)) categorized.midterm.push(file);
         else if (FILE_CATEGORIES.grandQuiz.test(fileName)) categorized.grandQuiz.push(file);
         else if (FILE_CATEGORIES.quiz.test(fileName)) categorized.quiz.push(file);
         else if (FILE_CATEGORIES.practice.test(fileName)) categorized.practice.push(file);
@@ -253,8 +286,12 @@ async function processFileSearch(sock, remoteJid, subjectCode, keywords, options
         logger.error('Drive search failed', err);
     }
 
-    // 3. Filter by keywords
-    if (keywords) {
+    // 3. Detect user intent and filter by remaining keywords
+    const intent = detectSearchIntent(keywords);
+
+    if (intent.keywords) {
+        files = filterFilesByKeywords(files, intent.keywords);
+    } else if (keywords && intent.type === 'general') {
         files = filterFilesByKeywords(files, keywords);
     }
 
@@ -458,3 +495,4 @@ module.exports = {
     continueFileSending,
     processFileSearch
 };
+

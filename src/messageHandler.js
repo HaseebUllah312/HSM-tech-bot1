@@ -351,11 +351,14 @@ async function handleMessage(sock, msg) {
                 // Use a more casual system instruction for DM
                 const dmInstruction = "You are a helpful assistant. Chat normally and strictly. Be brief.";
                 const response = await aiService.generateResponse(cleanContent, dmInstruction);
-                if (response) {
-                    await sock.sendMessage(remoteJid, { text: response });
+
+                // ✅ Prevent empty messages - Only send if response has actual content
+                if (response && response.trim().length > 0) {
+                    await sock.sendMessage(remoteJid, { text: response.trim() });
                 }
             } catch (e) {
                 logger.error('Inbox AI failed', e);
+                //Silent fail - don't send empty or error messages
             }
             return;
         }
@@ -422,15 +425,16 @@ We handle LMS, Assignments, Quizzes, and Projects with guaranteed results. 💯
 
         try {
             const response = await aiService.generateResponse(cleanContent, systemInstruction);
-            if (response) {
-                // Formatting response
-                const finalResponse = `${response}`;
+
+            // ✅ Prevent empty messages - Only send if response has actual content
+            if (response && response.trim().length > 0) {
                 await sock.sendMessage(remoteJid, {
-                    text: finalResponse
+                    text: response.trim()
                 });
             }
         } catch (e) {
             logger.error('Auto AI failed', e);
+            // Silent fail - don't send empty or error messages
         }
     }
 }

@@ -1,8 +1,48 @@
-﻿node_modules/
-auth/
+﻿# Dependencies
+node_modules/
+npm-debug.log*
+package-lock.json
+
+# Environment variables
 .env
+
+# Authentication data (WhatsApp session)
+auth/
+
+# Logs
 logs/
-temp_downloads/
 *.log
+pm2-*.log
+
+# Temporary files
+temp_downloads/
+*.tmp
+*.temp
+
+# OS files
 .DS_Store
-hsm-bot-key.pem
+Thumbs.db
+desktop.ini
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build files
+dist/
+build/
+
+# Archives
+*.zip
+*.rar
+*.tar.gz
+
+# SSH keys
+*.pem
+*.ppk
+
+# Data files (optional - comment out if you want to backup)
+data/*.json
