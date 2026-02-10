@@ -132,6 +132,37 @@ async function checkModeration(sock, msg, remoteJid, senderId, isGroup, isAdmin)
         }
     }
 
+
+    // 3.5. Anti-Status Check
+    if (settings.get(`${remoteJid}.antistatus`)) {
+        const linkModerator = require('./linkModerator');
+        if (linkModerator.hasStatusMention(messageContent)) {
+            await sock.sendMessage(remoteJid, { delete: msg.key });
+
+            // Count warning
+            const currentCount = linkModerator.incrementWarningForUser(remoteJid, senderId);
+
+            // Send Warning
+            const warningMsg = linkModerator.getStatusWarning(senderId.split('@')[0], currentCount);
+            await sock.sendMessage(remoteJid, {
+                text: warningMsg,
+                mentions: [senderId]
+            });
+
+            // Kick if 4th warning (consistent with link moderator)
+            if (currentCount >= 4) {
+                try {
+                    await sock.groupParticipantsUpdate(remoteJid, [senderId], 'remove');
+                    await sock.sendMessage(remoteJid, { text: `🚫 @${senderId.split('@')[0]} has been removed for repeated violations.`, mentions: [senderId] });
+                    linkModerator.resetWarnings(remoteJid, senderId);
+                } catch (e) {
+                    await sock.sendMessage(remoteJid, { text: '❌ Failed to remove user. Please check my admin permissions.' });
+                }
+            }
+            return true;
+        }
+    }
+
     // 4. Anti-Sticker
     if (settings.get(`${remoteJid}.antisticker`, config.FEATURE_ANTISTICKER)) { // Check Group Config
         if (msg.message && (msg.message.stickerMessage || (msg.message.extendedTextMessage && msg.message.extendedTextMessage.contextInfo && msg.message.extendedTextMessage.contextInfo.stickerMessage))) {
@@ -349,7 +380,7 @@ async function handleMessage(sock, msg) {
             // Proceed with AI for Inbox
             try {
                 // Use a more casual system instruction for DM
-                const dmInstruction = "You are a helpful assistant. Chat normally and strictly. Be brief.";
+                const dmInstruction = "You are a helpful assistant. Provide detailed and accurate answers. Use a friendly tone.";
                 const response = await aiService.generateResponse(cleanContent, dmInstruction);
 
                 // ✅ Prevent empty messages - Only send if response has actual content
@@ -421,7 +452,12 @@ We handle LMS, Assignments, Quizzes, and Projects with guaranteed results. 💯
         // (Removed duplicate Contact Request block)
 
         // If defined, proceed with AI
-        const systemInstruction = "You are a polite and helpful group admin named 'HSM Bot'. Your job is to handle the group professionally. Answer questions, calm down arguments, and be helpful. If you don't know something, suggest asking the main admin '𝕴𝖙'𝖘 𝕸𝖚𝖌𝖍𝖆𝖑.' Be brief and human-like.";
+        const systemInstruction = `You are 'HSM Bot', a helpful and knowledgeable group admin.
+        - Your goal is to help students by providing clear, detailed, and accurate explanations.
+        - When explaining a topic, break it down simply and use bullet points.
+        - Be professional, polite, and encouraging.
+        - If you don't know something, suggest asking the main admin '𝕴𝖙'𝖘 𝕸𝖚𝖌𝖍𝖆𝖑.'.
+        - Ensure your information is up-to-date.`;
 
         try {
             const response = await aiService.generateResponse(cleanContent, systemInstruction);

@@ -119,45 +119,37 @@ function getLinkTypeName(violationType) {
 
 /**
  * Generate professional Channel Alert styled warning message
+ * Generate professional compact warning message
  * @param {string} senderNumber - Sender's phone number
  * @param {string} violationType - Type of violation
  * @param {number} warningCount - Current warning count (1-3)
- * @param {string} botOwner - Bot owner name
  * @returns {string} Formatted warning message
  */
-function generateChannelAlert(senderNumber, violationType, warningCount, botOwner) {
+function generateChannelAlert(senderNumber, violationType, warningCount) {
     const linkTypeName = getLinkTypeName(violationType);
     const botName = config.BOT_NAME || 'HSM Tech Bot';
-    const ownerName = botOwner || config.BOT_OWNER || 'HSM TECH';
+    const ownerName = "𝕴𝖙'𝖘 𝕸𝖚𝖌𝖍𝖆𝖑."; // Custom font as requested
 
-    // Determine action text and emoji based on warning count
-    let actionText = '*𝐍𝐨𝐭 𝐀𝐥𝐥𝐨𝐰𝐞𝐝*';
-    let warningEmoji = '⚠️';
+    // Determine action text
+    let actionText = '*𝐀𝐂𝐓𝐈𝐎𝐍 𝐓𝐀𝐊𝐄𝐍*';
 
-    if (warningCount === 2) {
-        actionText = '*𝐒𝐞𝐜𝐨𝐧𝐝 𝐖𝐚𝐫𝐧𝐢𝐧𝐠*';
-        warningEmoji = '🔶';
-    } else if (warningCount === 3) {
-        actionText = '*𝐓𝐡𝐢𝐫𝐝 𝐖𝐚𝐫𝐧𝐢𝐧𝐠*';
-        warningEmoji = '🟠';
-    } else if (warningCount >= 4) {
-        actionText = '*𝐅𝐢𝐧𝐚𝐥 𝐖𝐚𝐫𝐧𝐢𝐧𝐠!*';
-        warningEmoji = '🔴';
-    }
+    // Reason map
+    const reasonMap = {
+        'whatsapp_group': 'Group links are not allowed.',
+        'whatsapp_channel': 'Channel links/posts are not allowed.',
+        'status_mention': 'Do not mention this group in your status.',
+        'unknown_link': 'Links are not allowed here.'
+    };
 
-    const alert = `╔══════════════════════════════╗
-║     ⛔ *𝗟𝗜𝗡𝗞 𝗔𝗟𝗘𝗥𝗧* ⛔     ║
-╠══════════════════════════════╣
-╠➤ 𝗨𝘀𝗲𝗿: @${senderNumber}
-╠➤ 𝗧𝘆𝗽𝗲: *${linkTypeName}*
-╠➤ 𝗦𝘁𝗮𝘁𝘂𝘀: ${actionText}
-╠➤ 𝗪𝗮𝗿𝗻: *${warningCount}/4* ${warningEmoji}
-╠══════════════════════════════╣
-║  🤖 *${botName}*
-║  👑 Owner: *${ownerName}*
-╚══════════════════════════════╝`;
+    const reason = reasonMap[violationType] || `${linkTypeName}s are not allowed.`;
 
-    return alert;
+    // Compact Design
+    return `🤖 *${botName}*
+⛔ ${actionText}
+👤 @${senderNumber} | ⚠️ Warn: ${warningCount}/3
+🔗 Type: ${linkTypeName}
+🚫 ${reason}
+👑 Owner: ${ownerName}`;
 }
 
 /**
@@ -408,19 +400,18 @@ function checkMessage(msg, messageContent, groupId = null, participantId = null)
     return result;
 }
 
-/**
- * Check if message contains WhatsApp status mention
- * @param {string} message - Message text
- * @returns {boolean} True if contains status mention
- */
 function hasStatusMention(message) {
     if (!message) return false;
 
+    // 1. System Message: "@ This group was mentioned." (Automatic)
+    // 2. Manual: "Check my status", "123's status"
     const statusPatterns = [
+        /@\s*This group was mentioned/i,   // System message when group is tagged
+        /\d+'s\s*status/i,                 // "92300...'s status" (System/Forward)
         /check\s*(my|out)?\s*status/i,
         /see\s*(my)?\s*status/i,
         /view\s*(my)?\s*status/i,
-        /dekho\s*(mera)?\s*status/i,      // Urdu/Hindi
+        /dekho\s*(mera)?\s*status/i,
         /status\s*dekho/i,
         /status\s*lagaya/i,
         /dp\s*(dekho|check)/i
@@ -429,24 +420,8 @@ function hasStatusMention(message) {
     return statusPatterns.some(pattern => pattern.test(message));
 }
 
-/**
- * Get warning message for status mention
- * @returns {string} Warning message
- */
-function getStatusWarning() {
-    const botName = config.BOT_NAME || 'HSM Tech Bot';
-    const ownerName = config.BOT_OWNER || 'HSM TECH';
-
-    return `╔══════════════════════════════╗
-║    ⛔ *𝗦𝗧𝗔𝗧𝗨𝗦 𝗔𝗟𝗘𝗥𝗧* ⛔    ║
-╠══════════════════════════════╣
-╠➤ *Status Mentions Not Allowed*
-╠➤ 🚫 Don't ask to check status
-╠➤ 💡 Share content directly
-╠══════════════════════════════╣
-║  🤖 *${botName}*
-║  👑 Owner: *${ownerName}*
-╚══════════════════════════════╝`;
+function getStatusWarning(senderNumber, warningCount) {
+    return generateChannelAlert(senderNumber, 'status_mention', warningCount);
 }
 
 /**
@@ -456,11 +431,8 @@ function getStatusWarning() {
  * @returns {string} Formatted warning
  */
 function getFormattedWarning(senderNumber, modResult) {
-    const botOwner = config.BOT_OWNER || 'HSM TECH';
-    const alert = generateChannelAlert(senderNumber, modResult.violationType, modResult.warningCount, botOwner);
-    const extendedMsg = generateExtendedWarning(modResult.violationType, modResult.warningCount);
-
-    return `${alert}${extendedMsg}`;
+    // Return ONLY the compact Channel Alert (User requested "edit all warning ;like these text")
+    return generateChannelAlert(senderNumber, modResult.violationType, modResult.warningCount);
 }
 
 module.exports = {
@@ -474,3 +446,4 @@ module.exports = {
     incrementWarningForUser: incrementWarning,
     LINK_PATTERNS
 };
+

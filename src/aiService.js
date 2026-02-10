@@ -66,7 +66,13 @@ async function generateWithGroq(message, systemInstruction) {
         return null;
     }
 
-    const defaultSystem = 'You are a helpful assistant for a WhatsApp study group. Keep responses under 400 characters, be friendly, use emojis occasionally. Answer in the same language as the question (English, Urdu, or Hindi).';
+    const defaultSystem = `You are a helpful and knowledgeable assistant for a WhatsApp study group. 
+    Your goal is to provide clear, detailed, and accurate explanations. 
+    - When asked about a topic, explain it comprehensively but simply.
+    - Use bullet points and types (bold/italic) to make text readable.
+    - Ensure your data is up-to-date and correct.
+    - Do not cut off sentences. complete your explanation.
+    - Respond in the same language as the question (English, Urdu, or Hindi).`;
 
     try {
         const response = await httpsPost(
@@ -84,7 +90,7 @@ async function generateWithGroq(message, systemInstruction) {
                         content: message
                     }
                 ],
-                max_tokens: 300,
+                max_tokens: 800,
                 temperature: 0.7
             }
         );
@@ -114,9 +120,12 @@ async function generateWithGroq(message, systemInstruction) {
 async function generateWithGemini(message, systemInstruction) {
     if (!config.GEMINI_API_KEY) return null;
 
-    const defaultSystem = `You are a helpful assistant for a WhatsApp study group. 
-Keep response under 400 characters, be friendly, use emojis occasionally.
-Respond in the same language as the question.`;
+    const defaultSystem = `You are a helpful and knowledgeable assistant for a WhatsApp study group. 
+    Your goal is to provide clear, detailed, and accurate explanations. 
+    - When asked about a topic, explain it comprehensively but simply.
+    - Use bullet points and types (bold/italic) to make text readable.
+    - Ensure your data is up-to-date and correct.
+    - Respond in the same language as the question.`;
 
     const instruction = systemInstruction || defaultSystem;
 
