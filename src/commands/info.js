@@ -6,6 +6,15 @@
 const config = require('../config');
 const { settings } = require('../dataStore');
 
+// Helper function to format uptime
+function formatUptime(seconds) {
+    const d = Math.floor(seconds / (3600 * 24));
+    const h = Math.floor((seconds % (3600 * 24)) / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    return `${d}d ${h}h ${m}m ${s}s`;
+}
+
 const commands = {
     // Owner Info
     owner: async (sock, msg, args) => {
@@ -136,6 +145,7 @@ const commands = {
 
         menu += `ℹ️ *Information*\n`;
         menu += `• ${config.BOT_PREFIX}help or ${config.BOT_PREFIX}menu\n  └ Show this menu\n`;
+        menu += `• ${config.BOT_PREFIX}uptime\n  └ Check bot uptime\n`;
         menu += `• ${config.BOT_PREFIX}intro\n  └ About this bot\n`;
         menu += `• ${config.BOT_PREFIX}owner\n  └ Contact support\n\n`;
 
@@ -158,6 +168,7 @@ const commands = {
         const introMsg = `╔══════════════════════════════╗
 ║   🤖 *${config.BOT_NAME}*
 ║   *Your Smart Study Companion*
+║   *Online Time:* ${formatUptime(process.uptime())}
 ╚══════════════════════════════╝
 
 👋 *Hello Everyone!*
@@ -193,6 +204,20 @@ Type your subject code (e.g. \`CS101\`) to get files!
             // I'll stick to a text message for now to specific key 'text'.
             text: introMsg
         });
+    },
+
+    // Uptime Command
+    uptime: async (sock, msg, args) => {
+        const remoteJid = msg.key.remoteJid;
+        const uptime = process.uptime();
+        const uptimeString = formatUptime(uptime);
+
+        const uptimeMsg = `🤖 *Bot Status Report*\n\n` +
+            `🕒 *Uptime:* ${uptimeString}\n` +
+            `📅 *Since:* ${new Date(Date.now() - (uptime * 1000)).toLocaleString()}\n\n` +
+            `🚀 *System is running smoothly!*`;
+
+        await sock.sendMessage(remoteJid, { text: uptimeMsg });
     }
 };
 
