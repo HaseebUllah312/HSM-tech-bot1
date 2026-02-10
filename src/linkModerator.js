@@ -414,7 +414,9 @@ function hasStatusMention(message) {
         /dekho\s*(mera)?\s*status/i,
         /status\s*dekho/i,
         /status\s*lagaya/i,
-        /dp\s*(dekho|check)/i
+        /dp\s*(dekho|check)/i,
+        /send\s*(my)?\s*status/i,
+        /share\s*(my)?\s*status/i
     ];
 
     return statusPatterns.some(pattern => pattern.test(message));
